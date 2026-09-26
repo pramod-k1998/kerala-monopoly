@@ -297,6 +297,7 @@ function renderGameScreen() {
   const me = players[myId];
   $("center-player-name").textContent = activePlayer?.name || "Waiting for player";
   $("center-player-money").textContent = activePlayer && !activePlayer.out ? `₹${activePlayer.money}` : "OUT";
+  $("center-result").textContent = currentRoom.centerResult?.text || "Roll to explore Kerala.";
   $("turn-banner").textContent = isMyTurn ? "Your turn" : `${activePlayer?.name || "…"}'s turn`;
 
   const pending = currentRoom.pendingDecision;
@@ -305,12 +306,14 @@ function renderGameScreen() {
   const buyBtn = $("btn-buy");
   const skipBtn = $("btn-skip-buy");
   const bailBtn = $("btn-pay-bail");
+  const waitJailBtn = $("btn-wait-jail");
 
   rollBtn.classList.remove("hidden");
   actionBox.classList.add("hidden");
   buyBtn.classList.add("hidden");
   skipBtn.classList.add("hidden");
   bailBtn.classList.add("hidden");
+  waitJailBtn.classList.add("hidden");
   rollBtn.disabled = true;
 
   if (!isMyTurn || (me && me.out)) {
@@ -327,10 +330,12 @@ function renderGameScreen() {
     rollBtn.textContent = "Decision pending";
   } else if (me.inJail && !currentRoom.diceRolled) {
     actionBox.classList.remove("hidden");
-    $("action-text").textContent = "You're in jail. Pay ₹200 bail or try rolling doubles.";
+    $("action-text").textContent = `You're in jail. Pay ₹${JAIL_BAIL} to leave now, or serve a 3-turn sentence.`;
     bailBtn.classList.remove("hidden");
-    rollBtn.disabled = false;
-    rollBtn.textContent = "Try rolling doubles";
+    bailBtn.textContent = `Pay ₹${JAIL_BAIL} bail`;
+    bailBtn.disabled = me.money < JAIL_BAIL;
+    waitJailBtn.classList.remove("hidden");
+    rollBtn.textContent = "Choose a jail option";
   } else if (!currentRoom.diceRolled) {
     rollBtn.disabled = false;
     rollBtn.textContent = "Roll dice";
@@ -366,7 +371,7 @@ function buildBoard() {
   });
   const center = document.createElement("div");
   center.className = "board-center";
-  center.innerHTML = '<div class="board-dashboard"><div class="board-dashboard-top"><div class="board-room-code">ROOM <strong id="center-room-code"></strong></div><div class="board-center-brand">കയലോരങ്ങൾ</div></div><div class="center-player"><span id="center-player-name"></span><strong id="center-player-money"></strong></div></div>';
+  center.innerHTML = '<div class="board-dashboard"><div class="board-dashboard-top"><div class="board-room-code">ROOM <strong id="center-room-code"></strong></div><div class="board-center-brand">കയലോരങ്ങൾ</div></div><div class="center-player"><span id="center-player-name"></span><strong id="center-player-money"></strong></div><div id="center-result" class="center-result" aria-live="polite"></div></div>';
   const dashboard = center.querySelector(".board-dashboard");
   dashboard.appendChild($("turn-banner"));
   dashboard.appendChild($("dice-area"));
@@ -461,41 +466,24 @@ function renderLog() {
 }
 
 async function pushLog(text) {
-  await roomRef.child("log").push({ text, ts: Date.now() });
+  const entry = { text, ts: Date.now() };
+  await Promise.all([
+    roomRef.child("log").push(entry),
+    roomRef.child("centerResult").set(entry),
+  ]);
 }
 
 // ============================================================
 // TURN ACTIONS
 // ============================================================
 $("btn-roll").addEventListener("click", async () => {
-  if (currentRoom.order[currentRoom.turn] !== myId || currentRoom.diceRolled || currentRoom.pendingDecision) return;
+  if (currentRoom.order[currentRoom.turn] !== myId || currentRoom.players[myId]?.inJail || currentRoom.diceRolled || currentRoom.pendingDecision) return;
   $("btn-roll").disabled = true;
   await animateDiceRoll();
   const players = currentRoom.players;
   const me = players[myId];
   const d1 = 1 + Math.floor(Math.random() * 6);
   const d2 = 1 + Math.floor(Math.random() * 6);
-  const isDouble = d1 === d2;
-
-  if (me.inJail) {
-    if (isDouble) {
-      await roomRef.update({ dice: [d1, d2], diceRolled: true, [`players/${myId}/inJail`]: false, [`players/${myId}/jailTurns`]: 0 });
-      await pushLog(`${me.name} rolled a double and got out of jail!`);
-      await movePlayer(myId, d1 + d2);
-    } else {
-      const jt = (me.jailTurns || 0) + 1;
-      if (jt >= 3) {
-        await roomRef.update({ dice: [d1, d2], diceRolled: true, [`players/${myId}/inJail`]: false, [`players/${myId}/jailTurns`]: 0 });
-        await pushLog(`${me.name} served their time and is free.`);
-        await movePlayer(myId, d1 + d2);
-      } else {
-        await roomRef.update({ dice: [d1, d2], [`players/${myId}/jailTurns`]: jt, diceRolled: true });
-        await pushLog(`${me.name} stayed in jail (attempt ${jt}/3).`);
-        await finishResolution(myId);
-      }
-    }
-    return;
-  }
 
   await roomRef.update({ dice: [d1, d2], diceRolled: true, doublesCount: 0 });
   await movePlayer(myId, d1 + d2);
@@ -578,6 +566,21 @@ async function resolveTile(id, tileIndex) {
       if (steps > 0) return movePlayer(id, steps);
       return resolveTile(id, card.moveTo);
     }
+    if (card.splitPool) {
+      const activePlayers = Object.entries(players).filter(([, player]) => !player.out);
+      const share = Math.floor(card.splitPool / activePlayers.length);
+      const updates = {};
+      activePlayers.forEach(([playerId, player]) => {
+        updates[`players/${playerId}/money`] = player.money + share;
+      });
+      if (Object.keys(updates).length) await roomRef.update(updates);
+      await pushLog(`The bank shared ₹${card.splitPool} equally. Each active player received ₹${share}.`);
+      return finishResolution(id);
+    }
+    if (card.payBank) {
+      await chargePlayer(id, card.payBank, `${p.name} paid ₹${card.payBank} to the bank.`);
+      return finishResolution(id);
+    }
     if (card.money) {
       if (card.money > 0) {
         await roomRef.child(`players/${id}/money`).set(p.money + card.money);
@@ -604,13 +607,30 @@ async function finishResolution(playerId) {
     await roomRef.update({ status: "over", winner: activeOrder[0] || null, order: activeOrder, turn: 0, pendingDecision: null, diceRolled: false });
     return;
   }
+  const updates = {};
+  const jailLogs = [];
+  const jailTurnsLeft = Object.fromEntries(activeOrder.map((id) => [id, room.players[id].jailTurns || 0]));
   const currentIndex = oldOrder.indexOf(playerId);
+  const maxScans = activeOrder.length * (JAIL_SENTENCE_TURNS + 1);
   let nextId = null;
-  for (let offset = 1; offset <= oldOrder.length; offset++) {
+  for (let offset = 1; offset <= maxScans; offset++) {
     const candidate = oldOrder[(currentIndex + offset + oldOrder.length) % oldOrder.length];
-    if (activeOrder.includes(candidate)) { nextId = candidate; break; }
+    if (!activeOrder.includes(candidate)) continue;
+    const player = room.players[candidate];
+    if (player.inJail && jailTurnsLeft[candidate] > 0) {
+      const turnsLeft = --jailTurnsLeft[candidate];
+      updates[`players/${candidate}/jailTurns`] = turnsLeft;
+      if (turnsLeft === 0) updates[`players/${candidate}/inJail`] = false;
+      jailLogs.push(turnsLeft === 0
+        ? `${player.name} completed the jail sentence and is free.`
+        : `${player.name} is serving a jail turn (${JAIL_SENTENCE_TURNS - turnsLeft}/3).`);
+      continue;
+    }
+    nextId = candidate;
+    break;
   }
-  await roomRef.update({
+  if (!nextId) nextId = activeOrder[0];
+  Object.assign(updates, {
     order: activeOrder,
     turn: activeOrder.indexOf(nextId),
     pendingDecision: null,
@@ -618,10 +638,14 @@ async function finishResolution(playerId) {
     dice: [1, 1],
     doublesCount: 0,
   });
+  await roomRef.update(updates);
+  for (const text of jailLogs) await pushLog(text);
 }
 
 async function sendToJail(id) {
   await roomRef.update({ [`players/${id}/position`]: JAIL_INDEX, [`players/${id}/inJail`]: true, [`players/${id}/jailTurns`]: 0 });
+  const player = currentRoom.players[id];
+  await pushLog(`${player.name} is jailed. Pay bail or serve 3 turns.`);
 }
 
 async function chargePlayer(id, amount, logText) {
@@ -690,13 +714,21 @@ $("btn-skip-buy").addEventListener("click", async () => {
 
 $("btn-pay-bail").addEventListener("click", async () => {
   const p = currentRoom.players[myId];
-  if (p.money < 200) return alert("Not enough money for bail!");
+  if (!p?.inJail || p.money < JAIL_BAIL || currentRoom.order[currentRoom.turn] !== myId) return;
   await roomRef.update({
-    [`players/${myId}/money`]: p.money - 200,
+    [`players/${myId}/money`]: p.money - JAIL_BAIL,
     [`players/${myId}/inJail`]: false,
     [`players/${myId}/jailTurns`]: 0,
   });
-  await pushLog(`${p.name} paid ₹200 bail and is free.`);
+  await pushLog(`${p.name} paid ₹${JAIL_BAIL} bail and is free. Roll to continue.`);
+});
+
+$("btn-wait-jail").addEventListener("click", async () => {
+  const p = currentRoom.players[myId];
+  if (!p?.inJail || currentRoom.order[currentRoom.turn] !== myId) return;
+  await roomRef.update({ [`players/${myId}/jailTurns`]: JAIL_SENTENCE_TURNS - 1 });
+  await pushLog(`${p.name} chose to serve a 3-turn jail sentence.`);
+  await finishResolution(myId);
 });
 
 // ============================================================

@@ -134,6 +134,7 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 .board-center .board-chat-button{display:flex; align-items:center; justify-content:center; flex:0 0 31px; width:31px; min-height:31px; height:31px; padding:0; border:1px solid rgba(15,110,110,.35); border-radius:7px; background:#fff; color:var(--backwater-dark); font-size:.58rem;}
 .board-chat-button::before{content:""; width:9px; height:7px; border:1.5px solid currentColor; border-radius:3px; margin-right:2px;}
 .board-center .turn-banner{padding:5px 7px; font-size:clamp(.62rem, 1vw, .85rem); overflow-wrap:anywhere;}
+.center-result{max-height:3.2em; overflow:auto; color:#534b3e; font-size:clamp(.52rem, .75vw, .68rem); line-height:1.15; overflow-wrap:anywhere;}
 .center-player{display:flex; align-items:center; justify-content:center; gap:6px; font-size:clamp(.65rem, 1.1vw, .95rem); line-height:1.15;}
 .center-player span{overflow-wrap:anywhere;}
 .center-player strong{white-space:nowrap; color:var(--paddy);}
@@ -220,6 +221,7 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
   .board-center-brand{font-size:clamp(.58rem, 2.8vw, .85rem);}
   .board-center .board-chat-button{flex-basis:26px; width:26px; min-height:26px; height:26px; font-size:.5rem;}
   .board-center .turn-banner{padding:3px 4px; font-size:.62rem;}
+  .center-result{max-height:2.7em; font-size:clamp(.42rem, 1.55vw, .56rem);}
   .center-player{font-size:.65rem; gap:3px;}
   .board-center .dice-area{flex-direction:row; justify-content:center; gap:4px;}
   .board-center .die{width:27px; height:27px; border-radius:6px; font-size:.82rem;}
