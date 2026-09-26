@@ -5,11 +5,11 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // ---------- local identity ----------
-let myId = sessionStorage.getItem("kay_playerId");
+let myId = localStorage.getItem("kay_playerId") || sessionStorage.getItem("kay_playerId");
 if (!myId) {
   myId = "p_" + Math.random().toString(36).slice(2, 10);
-  sessionStorage.setItem("kay_playerId", myId);
 }
+localStorage.setItem("kay_playerId", myId);
 let myName = localStorage.getItem("kay_name") || "";
 let roomCode = sessionStorage.getItem("kay_room") || null;
 let roomRef = null;
