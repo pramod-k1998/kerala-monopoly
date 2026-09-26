@@ -278,8 +278,8 @@ let boardBuilt = false;
 
 function renderGameScreen() {
   showScreen("game");
-  $("topbar-room-code").textContent = roomCode;
   if (!boardBuilt) { buildBoard(); boardBuilt = true; }
+  $("center-room-code").textContent = roomCode;
 
   const players = currentRoom.players;
   const order = currentRoom.order;
@@ -366,11 +366,12 @@ function buildBoard() {
   });
   const center = document.createElement("div");
   center.className = "board-center";
-  center.innerHTML = '<div class="board-dashboard"><div class="board-center-brand">കയലോരങ്ങൾ</div><div class="center-player"><span id="center-player-name"></span><strong id="center-player-money"></strong></div></div>';
+  center.innerHTML = '<div class="board-dashboard"><div class="board-dashboard-top"><div class="board-room-code">ROOM <strong id="center-room-code"></strong></div><div class="board-center-brand">കയലോരങ്ങൾ</div></div><div class="center-player"><span id="center-player-name"></span><strong id="center-player-money"></strong></div></div>';
   const dashboard = center.querySelector(".board-dashboard");
   dashboard.appendChild($("turn-banner"));
   dashboard.appendChild($("dice-area"));
   dashboard.appendChild($("action-box"));
+  dashboard.querySelector(".board-dashboard-top").appendChild($("btn-toggle-chat"));
   board.appendChild(center);
 }
 
