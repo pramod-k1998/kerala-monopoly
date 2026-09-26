@@ -47,14 +47,8 @@
     <h3 class="section-label">Players</h3>
     <ul id="waiting-players" class="waiting-players"></ul>
 
-    <div class="token-picker">
-      <span class="section-label">Your token</span>
-      <div id="token-choices" class="token-choices"></div>
-    </div>
-
-    <button id="btn-ready" class="btn btn-primary">I'm ready</button>
     <button id="btn-start-game" class="btn btn-gold hidden">Start game</button>
-    <p id="waiting-hint" class="setup-hint">Waiting for at least 2 players to be ready…</p>
+    <p id="waiting-hint" class="setup-hint">Players are ready automatically. The host can start when everyone has joined.</p>
   </div>
 </div>
 
@@ -64,7 +58,7 @@
     <div class="topbar-brand">🥥 Kayalorangal</div>
     <div class="topbar-room">Room <strong id="topbar-room-code">------</strong></div>
     <button id="btn-toggle-players" class="icon-btn mobile-only" aria-label="Show players">Players</button>
-    <button id="btn-toggle-chat" class="icon-btn mobile-only" aria-label="Show chat">Chat</button>
+    <button id="btn-toggle-chat" class="icon-btn" aria-label="Open chat" aria-expanded="false">Chat</button>
   </header>
 
   <main class="game-layout">
@@ -75,15 +69,14 @@
     <aside id="panel-players" class="panel panel-players">
       <h3>Players</h3>
       <ul id="player-list" class="player-list"></ul>
-      <div class="turn-banner" id="turn-banner">—</div>
+      <div class="turn-banner" id="turn-banner">Waiting for player</div>
 
-      <div class="dice-area">
+      <div class="dice-area" id="dice-area">
         <div class="dice-pair">
           <div class="die" id="die1">1</div>
           <div class="die" id="die2">1</div>
         </div>
         <button id="btn-roll" class="btn btn-primary" disabled>Roll dice</button>
-        <button id="btn-end-turn" class="btn btn-secondary hidden">End turn</button>
       </div>
 
       <div id="action-box" class="action-box hidden">
@@ -98,7 +91,7 @@
       <div id="game-log" class="game-log"></div>
     </aside>
 
-    <aside id="panel-chat" class="panel panel-chat">
+    <aside id="panel-chat" class="panel panel-chat hidden">
       <h3>Chat</h3>
       <div id="chat-messages" class="chat-messages"></div>
       <form id="chat-form" class="chat-form">

@@ -3,7 +3,7 @@
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441", "#3F7D4A", "#8A4F72"];
+const PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441"];
 const LEGACY_PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441"];
 
 // ---------- local identity ----------
@@ -56,7 +56,7 @@ $("btn-create-room").addEventListener("click", async () => {
     hostId: myId,
     createdAt: Date.now(),
     players: {
-      [myId]: { name, token: "", profileColor: PROFILE_COLORS[0], ready: false, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: 0 },
+      [myId]: { name, profileColor: PROFILE_COLORS[0], ready: true, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: 0 },
     },
   });
   enterRoom(code);
@@ -78,7 +78,7 @@ $("btn-join-room").addEventListener("click", async () => {
   if (count >= 4) return showLobbyError("That room is full (4 players max).");
 
   await db.ref(`rooms/${code}/players/${myId}`).set({
-    name, token: "", profileColor: availableProfileColor(room.players || {}), ready: false, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: count,
+    name, profileColor: availableProfileColor(room.players || {}), ready: true, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: count,
   });
   enterRoom(code);
 });
@@ -91,8 +91,9 @@ function enterRoom(code) {
   attachRoomListener();
 }
 
-function availableProfileColor(players) {
-  const used = new Set(Object.values(players).map((player, index) => player.profileColor || LEGACY_PROFILE_COLORS[index % LEGACY_PROFILE_COLORS.length]));
+function availableProfileColor(players, excludeId = null) {
+  const entries = Object.entries(players).filter(([id]) => id !== excludeId);
+  const used = new Set(entries.map(([, player], index) => player.profileColor || LEGACY_PROFILE_COLORS[index % LEGACY_PROFILE_COLORS.length]));
   return PROFILE_COLORS.find((color) => !used.has(color)) || PROFILE_COLORS[0];
 }
 
@@ -192,7 +193,12 @@ function renderWaitingRoom() {
   const players = currentRoom.players || {};
   const list = $("waiting-players");
   list.innerHTML = "";
-  const taken = new Set(Object.entries(players).filter(([id]) => id !== myId).map(([id, p]) => playerColor(id, Object.keys(players))));
+  const me = players[myId];
+  if (me && (!me.ready || !me.profileColor)) {
+    const updates = { [`players/${myId}/ready`]: true };
+    if (!me.profileColor) updates[`players/${myId}/profileColor`] = availableProfileColor(players, myId);
+    roomRef.update(updates);
+  }
 
   Object.entries(players)
     .sort((a, b) => a[1].joinOrder - b[1].joinOrder)
@@ -215,35 +221,8 @@ function renderWaitingRoom() {
       list.appendChild(li);
     });
 
-  const choices = $("token-choices");
-  choices.innerHTML = "";
-  PROFILE_COLORS.forEach((color, index) => {
-    const btn = document.createElement("button");
-    btn.className = "token-choice";
-    btn.type = "button";
-    btn.style.backgroundColor = color;
-    btn.setAttribute("aria-label", `Choose profile color ${index + 1}`);
-    btn.title = `Color ${index + 1}`;
-    const isMine = players[myId] && playerColor(myId, Object.keys(players)) === color;
-    const isTaken = taken.has(color) && !isMine;
-    if (isMine) btn.classList.add("selected");
-    if (isTaken) btn.classList.add("taken");
-    btn.disabled = isTaken;
-    btn.addEventListener("click", () => {
-      db.ref(`rooms/${roomCode}/players/${myId}/profileColor`).set(color);
-    });
-    choices.appendChild(btn);
-  });
-
   const readyCount = Object.values(players).filter((p) => p.ready).length;
   const total = Object.keys(players).length;
-  const iAmReady = players[myId] && players[myId].ready;
-  $("btn-ready").textContent = iAmReady ? "Ready ✓" : "I'm ready";
-  $("btn-ready").onclick = () => {
-    const p = players[myId];
-    if (!p.profileColor && !p.token) return alert("Pick a profile color first!");
-    db.ref(`rooms/${roomCode}/players/${myId}/ready`).set(!p.ready);
-  };
 
   const isHost = myId === currentRoom.hostId;
   const canStart = isHost && total >= 2 && readyCount === total;
@@ -300,6 +279,7 @@ function renderGameScreen() {
   const order = currentRoom.order;
   const turnPlayerId = order[currentRoom.turn];
   const isMyTurn = turnPlayerId === myId;
+  const activePlayer = players[turnPlayerId];
 
   renderPlayerList(players, order, turnPlayerId);
   renderTokensOnBoard(players, order);
@@ -309,16 +289,12 @@ function renderGameScreen() {
   $("die2").textContent = currentRoom.dice[1];
 
   const me = players[myId];
-  const banner = $("turn-banner");
-  if (me && me.out) {
-    banner.textContent = "You're out of the game — spectating.";
-  } else {
-    banner.textContent = isMyTurn ? "Your turn!" : `${players[turnPlayerId]?.name || "…"}'s turn`;
-  }
+  $("center-player-name").textContent = activePlayer?.name || "Waiting for player";
+  $("center-player-money").textContent = activePlayer && !activePlayer.out ? `₹${activePlayer.money}` : "OUT";
+  $("turn-banner").textContent = isMyTurn ? "Your turn" : `${activePlayer?.name || "…"}'s turn`;
 
   const pending = currentRoom.pendingDecision;
   const rollBtn = $("btn-roll");
-  const endBtn = $("btn-end-turn");
   const actionBox = $("action-box");
   const buyBtn = $("btn-buy");
   const skipBtn = $("btn-skip-buy");
@@ -333,12 +309,17 @@ function renderGameScreen() {
   rollBtn.disabled = true;
 
   if (!isMyTurn || (me && me.out)) {
-    rollBtn.textContent = "Roll dice";
-  } else if (pending && pending.type === "buy") {
+    rollBtn.textContent = "Waiting";
+    if (pending) {
+      actionBox.classList.remove("hidden");
+      $("action-text").textContent = `${players[pending.playerId]?.name || "Player"} is choosing whether to buy ${BOARD[pending.tileIndex].name}.`;
+    }
+  } else if (pending && pending.type === "buy" && pending.playerId === myId) {
     actionBox.classList.remove("hidden");
     $("action-text").textContent = `Buy ${BOARD[pending.tileIndex].name} for ₹${BOARD[pending.tileIndex].price}?`;
     buyBtn.classList.remove("hidden");
     skipBtn.classList.remove("hidden");
+    rollBtn.textContent = "Decision pending";
   } else if (me.inJail && !currentRoom.diceRolled) {
     actionBox.classList.remove("hidden");
     $("action-text").textContent = "You're in jail. Pay ₹200 bail or try rolling doubles.";
@@ -349,7 +330,7 @@ function renderGameScreen() {
     rollBtn.disabled = false;
     rollBtn.textContent = "Roll dice";
   } else {
-    endBtn.classList.remove("hidden");
+    rollBtn.textContent = "Resolving roll";
   }
 
   renderLog();
@@ -380,7 +361,11 @@ function buildBoard() {
   });
   const center = document.createElement("div");
   center.className = "board-center";
-  center.textContent = "കയലോരങ്ങൾ";
+  center.innerHTML = '<div class="board-dashboard"><div class="board-center-brand">കയലോരങ്ങൾ</div><div class="center-player"><span id="center-player-name"></span><strong id="center-player-money"></strong></div></div>';
+  const dashboard = center.querySelector(".board-dashboard");
+  dashboard.appendChild($("turn-banner"));
+  dashboard.appendChild($("dice-area"));
+  dashboard.appendChild($("action-box"));
   board.appendChild(center);
 }
 
@@ -477,6 +462,7 @@ async function pushLog(text) {
 // TURN ACTIONS
 // ============================================================
 $("btn-roll").addEventListener("click", async () => {
+  if (currentRoom.order[currentRoom.turn] !== myId || currentRoom.diceRolled || currentRoom.pendingDecision) return;
   $("btn-roll").disabled = true;
   const players = currentRoom.players;
   const me = players[myId];
@@ -486,40 +472,29 @@ $("btn-roll").addEventListener("click", async () => {
 
   if (me.inJail) {
     if (isDouble) {
-      await roomRef.update({ dice: [d1, d2], [`players/${myId}/inJail`]: false, [`players/${myId}/jailTurns`]: 0 });
+      await roomRef.update({ dice: [d1, d2], diceRolled: true, [`players/${myId}/inJail`]: false, [`players/${myId}/jailTurns`]: 0 });
       await pushLog(`${me.name} rolled a double and got out of jail!`);
       await movePlayer(myId, d1 + d2);
     } else {
       const jt = (me.jailTurns || 0) + 1;
       if (jt >= 3) {
-        await roomRef.update({ dice: [d1, d2], [`players/${myId}/inJail`]: false, [`players/${myId}/jailTurns`]: 0 });
+        await roomRef.update({ dice: [d1, d2], diceRolled: true, [`players/${myId}/inJail`]: false, [`players/${myId}/jailTurns`]: 0 });
         await pushLog(`${me.name} served their time and is free.`);
         await movePlayer(myId, d1 + d2);
       } else {
         await roomRef.update({ dice: [d1, d2], [`players/${myId}/jailTurns`]: jt, diceRolled: true });
         await pushLog(`${me.name} stayed in jail (attempt ${jt}/3).`);
+        await finishResolution(myId);
       }
     }
     return;
   }
 
-  await roomRef.update({ dice: [d1, d2], diceRolled: true });
-  if (isDouble) {
-    const dc = (currentRoom.doublesCount || 0) + 1;
-    if (dc >= 3) {
-      await roomRef.update({ doublesCount: 0 });
-      await sendToJail(myId);
-      await pushLog(`${me.name} rolled doubles three times — straight to jail!`);
-      return;
-    }
-    await roomRef.update({ doublesCount: dc });
-  } else {
-    await roomRef.update({ doublesCount: 0 });
-  }
-  await movePlayer(myId, d1 + d2, isDouble);
+  await roomRef.update({ dice: [d1, d2], diceRolled: true, doublesCount: 0 });
+  await movePlayer(myId, d1 + d2);
 });
 
-async function movePlayer(id, steps, allowReroll) {
+async function movePlayer(id, steps) {
   const players = currentRoom.players;
   const p = players[id];
   const oldPos = p.position;
@@ -535,10 +510,10 @@ async function movePlayer(id, steps, allowReroll) {
   }
   if (passedGo) await pushLog(`${p.name} passed GO and collected ₹${PASS_GO_BONUS}.`);
   await pushLog(`${p.name} rolled and moved to ${BOARD[newPos].name}.`);
-  await resolveTile(id, newPos, allowReroll);
+  await resolveTile(id, newPos);
 }
 
-async function resolveTile(id, tileIndex, allowReroll) {
+async function resolveTile(id, tileIndex) {
   const tile = BOARD[tileIndex];
   const players = (await roomRef.child("players").get()).val();
   const ownership = (await roomRef.child("ownership").get()).val() || {};
@@ -548,11 +523,11 @@ async function resolveTile(id, tileIndex, allowReroll) {
     const ownerId = ownership[tileIndex];
     if (!ownerId) {
       if (p.money >= tile.price) {
-        await roomRef.update({ pendingDecision: { type: "buy", tileIndex, playerId: id, allowReroll: Boolean(allowReroll) } });
+        await roomRef.update({ pendingDecision: { type: "buy", tileIndex, playerId: id } });
         return;
       }
       await pushLog(`${p.name} cannot afford ${tile.name}; the property is passed.`);
-      return finishResolution(allowReroll);
+      return finishResolution(id);
     } else if (ownerId !== id) {
       await payRent(id, ownerId, tile.rent, tile.name);
     }
@@ -561,10 +536,10 @@ async function resolveTile(id, tileIndex, allowReroll) {
   } else if (tile.type === "chest") {
     const card = SURPRISE_CARDS[Math.floor(Math.random() * SURPRISE_CARDS.length)];
     await pushLog(`${p.name} drew: ${card.text}`);
-    if (card.toJail) { await sendToJail(id); return finishResolution(allowReroll); }
+    if (card.toJail) { await sendToJail(id); return finishResolution(id); }
     if (typeof card.moveTo === "number") {
       await roomRef.update({ [`players/${id}/position`]: card.moveTo });
-      return resolveTile(id, card.moveTo, allowReroll);
+      return resolveTile(id, card.moveTo);
     }
     if (card.money) {
       if (card.money > 0) await roomRef.update({ [`players/${id}/money`]: p.money + card.money });
@@ -572,15 +547,37 @@ async function resolveTile(id, tileIndex, allowReroll) {
     }
   } else if (tile.type === "gotojail") {
     await sendToJail(id);
-    return finishResolution(allowReroll);
+    return finishResolution(id);
   }
-  await finishResolution(allowReroll);
+  await finishResolution(id);
 }
 
-async function finishResolution(allowReroll) {
-  if (allowReroll) {
-    await roomRef.update({ diceRolled: false });
+async function finishResolution(playerId) {
+  const snap = await roomRef.get();
+  if (!snap.exists()) return;
+  const room = snap.val();
+  if (room.status !== "playing") return;
+
+  const oldOrder = room.order || [];
+  const activeOrder = oldOrder.filter((id) => room.players?.[id] && !room.players[id].out);
+  if (activeOrder.length <= 1) {
+    await roomRef.update({ status: "over", winner: activeOrder[0] || null, order: activeOrder, turn: 0, pendingDecision: null, diceRolled: false });
+    return;
   }
+  const currentIndex = oldOrder.indexOf(playerId);
+  let nextId = null;
+  for (let offset = 1; offset <= oldOrder.length; offset++) {
+    const candidate = oldOrder[(currentIndex + offset + oldOrder.length) % oldOrder.length];
+    if (activeOrder.includes(candidate)) { nextId = candidate; break; }
+  }
+  await roomRef.update({
+    order: activeOrder,
+    turn: activeOrder.indexOf(nextId),
+    pendingDecision: null,
+    diceRolled: false,
+    dice: [1, 1],
+    doublesCount: 0,
+  });
 }
 
 async function sendToJail(id) {
@@ -640,7 +637,7 @@ $("btn-buy").addEventListener("click", async () => {
     pendingDecision: null,
   });
   await pushLog(`${p.name} bought ${tile.name} for ₹${tile.price}.`);
-  await finishResolution(pending.allowReroll);
+  await finishResolution(myId);
 });
 
 $("btn-skip-buy").addEventListener("click", async () => {
@@ -648,7 +645,7 @@ $("btn-skip-buy").addEventListener("click", async () => {
   if (!pending || pending.playerId !== myId) return;
   await roomRef.update({ pendingDecision: null });
   await pushLog(`${currentRoom.players[myId].name} chose not to buy.`);
-  await finishResolution(pending.allowReroll);
+  await finishResolution(myId);
 });
 
 $("btn-pay-bail").addEventListener("click", async () => {
@@ -660,16 +657,6 @@ $("btn-pay-bail").addEventListener("click", async () => {
     [`players/${myId}/jailTurns`]: 0,
   });
   await pushLog(`${p.name} paid ₹200 bail and is free.`);
-});
-
-$("btn-end-turn").addEventListener("click", async () => {
-  const order = currentRoom.order;
-  let next = (currentRoom.turn + 1) % order.length;
-  let guard = 0;
-  while (currentRoom.players[order[next]].out && guard++ < order.length) {
-    next = (next + 1) % order.length;
-  }
-  await roomRef.update({ turn: next, diceRolled: false, dice: [1, 1], doublesCount: 0 });
 });
 
 // ============================================================
@@ -711,10 +698,14 @@ function appendChatMessage(msg) {
 // ============================================================
 $("btn-toggle-players").addEventListener("click", () => {
   $("panel-players").classList.toggle("open");
-  $("panel-chat").classList.remove("open");
+  $("panel-chat").classList.add("hidden");
+  $("btn-toggle-chat").setAttribute("aria-expanded", "false");
 });
 $("btn-toggle-chat").addEventListener("click", () => {
-  $("panel-chat").classList.toggle("open");
+  const chat = $("panel-chat");
+  const isOpening = chat.classList.contains("hidden");
+  chat.classList.toggle("hidden", !isOpening);
+  $("btn-toggle-chat").setAttribute("aria-expanded", String(isOpening));
   $("panel-players").classList.remove("open");
 });
 

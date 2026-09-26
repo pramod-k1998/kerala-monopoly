@@ -125,8 +125,14 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 }
 .board-center{
   grid-column:2 / 8; grid-row:2 / 8; display:flex; align-items:center; justify-content:center;
-  font-family:"Rozha One",serif; color:var(--backwater-dark); text-align:center; opacity:.5; font-size:1.4rem; padding:10px;
+  color:var(--backwater-dark); text-align:center; padding:clamp(5px, 1.2vw, 14px); overflow:hidden;
 }
+.board-dashboard{width:100%; max-width:380px; display:flex; flex-direction:column; align-items:stretch; justify-content:center; gap:clamp(4px, 1vw, 10px);}
+.board-center-brand{font-family:"Rozha One",serif; font-size:clamp(.75rem, 2vw, 1.4rem); line-height:1.1;}
+.board-center .turn-banner{padding:5px 7px; font-size:clamp(.62rem, 1vw, .85rem); overflow-wrap:anywhere;}
+.center-player{display:flex; align-items:center; justify-content:center; gap:6px; font-size:clamp(.65rem, 1.1vw, .95rem); line-height:1.15;}
+.center-player span{overflow-wrap:anywhere;}
+.center-player strong{white-space:nowrap; color:var(--paddy);}
 
 .panel{background:var(--card); border-radius:12px; padding:16px; box-shadow:0 4px 14px rgba(0,0,0,.06); height:fit-content;}
 .panel-players{display:flex; flex-direction:column; gap:12px;}
@@ -145,12 +151,20 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 }
 .action-box{background:#fbf6ea; border-radius:8px; padding:10px; text-align:center; font-size:.88rem;}
 .action-buttons{display:flex; gap:8px; margin-top:8px;}
+.board-center .dice-area{gap:6px;}
+.board-center .dice-pair{gap:5px;}
+.board-center .die{width:34px; height:34px; font-size:1rem;}
+.board-center .dice-area .btn{width:100%; min-height:34px; padding:5px 8px; font-size:.78rem;}
+.board-center .action-box{padding:6px; font-size:.72rem;}
+.board-center .action-box p{margin:0;}
+.board-center .action-buttons{gap:5px; margin-top:5px;}
+.board-center .action-buttons .btn{width:auto; min-width:0; flex:1; min-height:30px; padding:4px 5px; font-size:.7rem;}
 .game-log{
   font-size:.78rem; color:#5c5548; max-height:150px; overflow-y:auto; border-top:1px solid #eee2c9; padding-top:8px;
   display:flex; flex-direction:column-reverse; gap:4px;
 }
 
-.panel-chat{display:flex; flex-direction:column; height:340px; grid-column:2; }
+.panel-chat{display:flex; flex-direction:column; position:fixed; z-index:40; right:16px; top:68px; width:min(360px, calc(100vw - 32px)); height:min(520px, calc(100vh - 84px)); }
 .chat-messages{flex:1; overflow-y:auto; font-size:.85rem; display:flex; flex-direction:column; gap:6px; margin-bottom:8px;}
 .chat-messages .msg strong{color:var(--backwater-dark);}
 .chat-form{display:flex; gap:6px;}
@@ -173,18 +187,28 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
   .tile .tile-name{font-size:.48rem; overflow-wrap:anywhere;}
   .tile .tile-price{font-size:.45rem;}
   .board-center{font-size:1.1rem;}
-  .panel-players, .panel-chat{
+  .panel-players{
     position:fixed; right:0; bottom:0; left:0; top:auto; z-index:30; border-radius:16px 16px 0 0;
     max-height:70vh; overflow-y:auto; transform:translateY(110%); transition:transform .25s ease;
     padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
   }
-  .panel-players.open, .panel-chat.open{transform:translateY(0);}
-  .panel-chat{height:70vh; grid-column:1;}
+  .panel-players.open{transform:translateY(0);}
+  .panel-chat{right:0; bottom:0; left:0; top:auto; width:100%; height:min(70vh, 600px); max-height:calc(100vh - 20px); border-radius:16px 16px 0 0; padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));}
   .panel-players{gap:10px;}
   .player-list{gap:5px;}
   .player-list li{font-size:.85rem;}
   .btn{min-height:44px;}
   .chat-form input{min-width:0;}
+  .board-center{padding:4px;}
+  .board-dashboard{gap:4px;}
+  .board-center-brand{font-size:clamp(.65rem, 3vw, .9rem);}
+  .board-center .turn-banner{padding:3px 4px; font-size:.62rem;}
+  .center-player{font-size:.65rem; gap:3px;}
+  .board-center .dice-area{flex-direction:row; justify-content:center; gap:4px;}
+  .board-center .die{width:27px; height:27px; border-radius:6px; font-size:.82rem;}
+  .board-center .dice-area .btn{width:auto; flex:1; min-width:0; min-height:30px; padding:4px; font-size:.62rem;}
+  .board-center .action-box{padding:4px; font-size:.6rem;}
+  .board-center .action-buttons .btn{min-height:26px; font-size:.58rem; padding:3px;}
 }
 @media (max-width: 360px){
   .topbar{gap:5px;}
