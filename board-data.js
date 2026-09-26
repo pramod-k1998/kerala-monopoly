@@ -47,11 +47,16 @@ const SURPRISE_CARDS = [
   { text: "You won the Vallam Kali boat race! Collect ₹300.", money: 300 },
   { text: "Monsoon flooding damages your stall. Pay ₹100.", money: -100 },
   { text: "A tourist tips you generously. Collect ₹100.", money: 100 },
-  { text: "Advance to Marina Muhurtham (GO). Collect ₹200.", move: 0, collectGo: true },
+  { text: "Advance to Marina Muhurtham (GO). Collect ₹200.", moveTo: 0, collectGo: true, bonus: 200 },
   { text: "Take a free houseboat ride to Munnar Tea Gardens.", moveTo: 22 },
   { text: "Kathakali performance fee. Pay ₹75.", money: -75 },
   { text: "Spice trade profits! Collect ₹150.", money: 150 },
-  { text: "Go directly to the Police Checkpost jail.", toJail: true }
+  { text: "Go directly to the Police Checkpost jail.", toJail: true },
+  { text: "A spice shipment sells out. Collect ₹250.", money: 250 },
+  { text: "Head to Kochi Marine Drive for a festival.", moveTo: 26 },
+  { text: "Visit Kovalam Beach for a weekend break.", moveTo: 1 },
+  { text: "A ferry delay costs you ₹125.", money: -125 },
+  { text: "A monsoon detour sends you to the Police Checkpost.", toJail: true }
 ];
 
 const TOKENS = ["🥥","🛶","🐘","🦚","🌴","🏵️"];

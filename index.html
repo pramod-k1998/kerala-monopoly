@@ -91,7 +91,10 @@
     </aside>
 
     <aside id="panel-chat" class="panel panel-chat hidden">
-      <h3>Chat</h3>
+      <div class="chat-header">
+        <h3>Chat</h3>
+        <button id="btn-close-chat" class="close-chat" type="button" aria-label="Close chat">&times;</button>
+      </div>
       <div id="chat-messages" class="chat-messages"></div>
       <form id="chat-form" class="chat-form">
         <input id="chat-input" maxlength="140" placeholder="Say something…" autocomplete="off">

@@ -529,7 +529,10 @@ async function movePlayer(id, steps) {
   for (let step = 0; step < steps; step++) {
     position = (position + 1) % BOARD.length;
     const updates = { [`players/${id}/position`]: position };
-    if (position === 0) updates[`players/${id}/money`] = p.money + PASS_GO_BONUS;
+    if (position === 0) {
+      const currentMoney = (await roomRef.child(`players/${id}/money`).get()).val();
+      updates[`players/${id}/money`] = currentMoney + PASS_GO_BONUS;
+    }
     await roomRef.update(updates);
     if (step < steps - 1) await new Promise((resolve) => setTimeout(resolve, 110));
   }
@@ -563,11 +566,23 @@ async function resolveTile(id, tileIndex) {
     await pushLog(`${p.name} drew: ${card.text}`);
     if (card.toJail) { await sendToJail(id); return finishResolution(id); }
     if (typeof card.moveTo === "number") {
-      await roomRef.update({ [`players/${id}/position`]: card.moveTo });
+      const steps = (card.moveTo - p.position + BOARD.length) % BOARD.length;
+      if (card.bonus) {
+        const moneyRef = roomRef.child(`players/${id}/money`);
+        await moneyRef.set((await moneyRef.get()).val() + card.bonus);
+      }
+      if (card.collectGo && steps === 0) {
+        const moneyRef = roomRef.child(`players/${id}/money`);
+        await moneyRef.set((await moneyRef.get()).val() + PASS_GO_BONUS);
+      }
+      if (steps > 0) return movePlayer(id, steps);
       return resolveTile(id, card.moveTo);
     }
     if (card.money) {
-      if (card.money > 0) await roomRef.update({ [`players/${id}/money`]: p.money + card.money });
+      if (card.money > 0) {
+        await roomRef.child(`players/${id}/money`).set(p.money + card.money);
+        await pushLog(`${p.name} collected ₹${card.money}.`);
+      }
       else await chargePlayer(id, -card.money, null);
     }
   } else if (tile.type === "gotojail") {
@@ -732,6 +747,10 @@ $("btn-toggle-chat").addEventListener("click", () => {
   chat.classList.toggle("hidden", !isOpening);
   $("btn-toggle-chat").setAttribute("aria-expanded", String(isOpening));
   $("panel-players").classList.remove("open");
+});
+$("btn-close-chat").addEventListener("click", () => {
+  $("panel-chat").classList.add("hidden");
+  $("btn-toggle-chat").setAttribute("aria-expanded", "false");
 });
 
 function escapeHtml(str) {

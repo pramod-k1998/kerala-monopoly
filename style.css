@@ -178,6 +178,10 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 }
 
 .panel-chat{display:flex; flex-direction:column; position:fixed; z-index:40; right:16px; top:68px; width:min(360px, calc(100vw - 32px)); height:min(520px, calc(100vh - 84px)); }
+.chat-header{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+.chat-header h3{margin:0;}
+.close-chat{display:flex; align-items:center; justify-content:center; width:34px; height:34px; border:0; border-radius:6px; background:#efe8d8; color:var(--coir); font:400 1.5rem/1 "Mukta",sans-serif; cursor:pointer;}
+.close-chat:hover{background:#e2dac6;}
 .chat-messages{flex:1; overflow-y:auto; font-size:.85rem; display:flex; flex-direction:column; gap:6px; margin-bottom:8px;}
 .chat-messages .msg strong{color:var(--backwater-dark);}
 .chat-form{display:flex; gap:6px;}
