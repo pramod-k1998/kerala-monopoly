@@ -149,6 +149,15 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
   width:42px; height:42px; border-radius:8px; background:#fff; border:2px solid var(--coir);
   display:flex; align-items:center; justify-content:center; font-size:1.3rem; font-weight:700;
 }
+.dice-pair.rolling .die{animation:dice-roll .16s ease-in-out infinite alternate;}
+.dice-pair.rolling .die:last-child{animation-delay:.06s;}
+@keyframes dice-roll{
+  from{transform:translateY(-3px) rotate(-8deg); box-shadow:0 2px 3px rgba(0,0,0,.12);}
+  to{transform:translateY(3px) rotate(8deg); box-shadow:0 7px 8px rgba(0,0,0,.2);}
+}
+@media (prefers-reduced-motion:reduce){
+  .dice-pair.rolling .die{animation-duration:.4s;}
+}
 .action-box{background:#fbf6ea; border-radius:8px; padding:10px; text-align:center; font-size:.88rem;}
 .action-buttons{display:flex; gap:8px; margin-top:8px;}
 .board-center .dice-area{gap:6px;}

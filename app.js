@@ -3,6 +3,8 @@
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 4;
 const PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441"];
 const LEGACY_PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441"];
 
@@ -75,7 +77,7 @@ $("btn-join-room").addEventListener("click", async () => {
   const room = snap.val();
   if (room.status !== "lobby") return showLobbyError("That game has already started.");
   const count = Object.keys(room.players || {}).length;
-  if (count >= 4) return showLobbyError("That room is full (4 players max).");
+  if (count >= MAX_PLAYERS) return showLobbyError(`That room is full (${MAX_PLAYERS} players max).`);
 
   await db.ref(`rooms/${code}/players/${myId}`).set({
     name, profileColor: availableProfileColor(room.players || {}), ready: true, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: count,
@@ -225,11 +227,11 @@ function renderWaitingRoom() {
   const total = Object.keys(players).length;
 
   const isHost = myId === currentRoom.hostId;
-  const canStart = isHost && total >= 2 && readyCount === total;
+  const canStart = isHost && total >= MIN_PLAYERS && total <= MAX_PLAYERS && readyCount === total;
   $("btn-start-game").classList.toggle("hidden", !isHost);
   $("btn-start-game").disabled = !canStart;
   $("waiting-hint").textContent = isHost
-    ? (canStart ? "Everyone is ready — start when you like!" : `Waiting: ${readyCount}/${total} ready (need everyone, 2-4 players).`)
+    ? (canStart ? `Ready to start with ${total} players.` : `Need ${MIN_PLAYERS}-${MAX_PLAYERS} players; ${readyCount}/${total} are ready.`)
     : `Waiting for host to start… (${readyCount}/${total} ready)`;
   $("btn-start-game").onclick = startGame;
 }
@@ -244,6 +246,10 @@ $("btn-copy-link").addEventListener("click", () => {
 async function startGame() {
   const players = currentRoom.players;
   const order = Object.keys(players).sort((a, b) => players[a].joinOrder - players[b].joinOrder);
+  if (order.length < MIN_PLAYERS || order.length > MAX_PLAYERS || order.some((id) => !players[id].ready)) {
+    $("waiting-hint").textContent = `The game needs ${MIN_PLAYERS}-${MAX_PLAYERS} ready players.`;
+    return;
+  }
   const updates = {
     status: "playing",
     order,
@@ -301,7 +307,6 @@ function renderGameScreen() {
   const bailBtn = $("btn-pay-bail");
 
   rollBtn.classList.remove("hidden");
-  endBtn.classList.add("hidden");
   actionBox.classList.add("hidden");
   buyBtn.classList.add("hidden");
   skipBtn.classList.add("hidden");
@@ -464,6 +469,7 @@ async function pushLog(text) {
 $("btn-roll").addEventListener("click", async () => {
   if (currentRoom.order[currentRoom.turn] !== myId || currentRoom.diceRolled || currentRoom.pendingDecision) return;
   $("btn-roll").disabled = true;
+  await animateDiceRoll();
   const players = currentRoom.players;
   const me = players[myId];
   const d1 = 1 + Math.floor(Math.random() * 6);
@@ -493,6 +499,24 @@ $("btn-roll").addEventListener("click", async () => {
   await roomRef.update({ dice: [d1, d2], diceRolled: true, doublesCount: 0 });
   await movePlayer(myId, d1 + d2);
 });
+
+async function animateDiceRoll() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const dicePair = $("dice-area").querySelector(".dice-pair");
+  const dice = [$("die1"), $("die2")];
+  dicePair.classList.add("rolling");
+  await new Promise((resolve) => {
+    let frames = 0;
+    const timer = setInterval(() => {
+      dice.forEach((die) => { die.textContent = String(1 + Math.floor(Math.random() * 6)); });
+      if (++frames >= 9) {
+        clearInterval(timer);
+        dicePair.classList.remove("rolling");
+        resolve();
+      }
+    }, 75);
+  });
+}
 
 async function movePlayer(id, steps) {
   const players = currentRoom.players;
