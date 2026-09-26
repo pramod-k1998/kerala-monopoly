@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kayalorangal — A Kerala Property Game</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥥</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Mukta:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== LOBBY SCREEN ===================== -->
+<div id="screen-lobby" class="screen">
+  <div class="lobby-card">
+    <h1 class="brand">Kayal<span>orangal</span></h1>
+    <p class="tagline">A backwaters &amp; boat-race property game, inspired by Kerala</p>
+
+    <div id="lobby-forms">
+      <div class="form-block">
+        <label for="player-name">Your name</label>
+        <input id="player-name" maxlength="16" placeholder="e.g. Anjali" autocomplete="off">
+      </div>
+
+      <div class="lobby-actions">
+        <button id="btn-create-room" class="btn btn-primary">Create a room</button>
+        <div class="divider"><span>or</span></div>
+        <div class="join-row">
+          <input id="join-code" maxlength="6" placeholder="ROOM CODE" autocomplete="off">
+          <button id="btn-join-room" class="btn btn-secondary">Join</button>
+        </div>
+      </div>
+      <p id="lobby-error" class="error-text"></p>
+      <p class="setup-hint">First time? Add your Firebase project keys to <code>config.js</code> — see README.md.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== WAITING ROOM ===================== -->
+<div id="screen-waiting" class="screen hidden">
+  <div class="lobby-card">
+    <h2>Room code</h2>
+    <div class="room-code-display" id="room-code-display">------</div>
+    <button id="btn-copy-link" class="btn btn-secondary small">Copy invite link</button>
+
+    <h3 class="section-label">Players</h3>
+    <ul id="waiting-players" class="waiting-players"></ul>
+
+    <div class="token-picker">
+      <span class="section-label">Your token</span>
+      <div id="token-choices" class="token-choices"></div>
+    </div>
+
+    <button id="btn-ready" class="btn btn-primary">I'm ready</button>
+    <button id="btn-start-game" class="btn btn-gold hidden">Start game</button>
+    <p id="waiting-hint" class="setup-hint">Waiting for at least 2 players to be ready…</p>
+  </div>
+</div>
+
+<!-- ===================== GAME SCREEN ===================== -->
+<div id="screen-game" class="screen hidden">
+  <header class="topbar">
+    <div class="topbar-brand">🥥 Kayalorangal</div>
+    <div class="topbar-room">Room <strong id="topbar-room-code">------</strong></div>
+    <button id="btn-toggle-players" class="icon-btn mobile-only" aria-label="Players">👥</button>
+    <button id="btn-toggle-chat" class="icon-btn mobile-only" aria-label="Chat">💬</button>
+  </header>
+
+  <main class="game-layout">
+    <section class="board-wrap">
+      <div id="board" class="board"></div>
+    </section>
+
+    <aside id="panel-players" class="panel panel-players">
+      <h3>Players</h3>
+      <ul id="player-list" class="player-list"></ul>
+      <div class="turn-banner" id="turn-banner">—</div>
+
+      <div class="dice-area">
+        <div class="dice-pair">
+          <div class="die" id="die1">1</div>
+          <div class="die" id="die2">1</div>
+        </div>
+        <button id="btn-roll" class="btn btn-primary" disabled>Roll dice</button>
+        <button id="btn-end-turn" class="btn btn-secondary hidden">End turn</button>
+      </div>
+
+      <div id="action-box" class="action-box hidden">
+        <p id="action-text"></p>
+        <div class="action-buttons">
+          <button id="btn-buy" class="btn btn-gold hidden">Buy property</button>
+          <button id="btn-skip-buy" class="btn btn-secondary hidden">Don't buy</button>
+          <button id="btn-pay-bail" class="btn btn-gold hidden">Pay ₹200 bail</button>
+        </div>
+      </div>
+
+      <div id="game-log" class="game-log"></div>
+    </aside>
+
+    <aside id="panel-chat" class="panel panel-chat">
+      <h3>Chat</h3>
+      <div id="chat-messages" class="chat-messages"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" maxlength="140" placeholder="Say something…" autocomplete="off">
+        <button type="submit" class="btn btn-primary small">Send</button>
+      </form>
+    </aside>
+  </main>
+</div>
+
+<!-- ===================== GAME OVER ===================== -->
+<div id="screen-gameover" class="screen hidden">
+  <div class="lobby-card">
+    <h2>🏆 Game over</h2>
+    <p id="winner-text" class="winner-text"></p>
+    <button id="btn-new-game" class="btn btn-primary">Back to lobby</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+<script src="board-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
