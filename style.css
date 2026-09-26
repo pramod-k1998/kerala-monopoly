@@ -69,16 +69,20 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
   border:2px dashed var(--gold);
 }
 .waiting-players{list-style:none; margin:10px 0 20px; padding:0; display:flex; flex-direction:column; gap:8px;}
-.waiting-players li{display:flex; align-items:center; gap:10px; background:#faf6ec; border-radius:8px; padding:8px 12px;}
+.waiting-players li{display:flex; align-items:center; gap:10px; background:#faf6ec; border-radius:8px; padding:8px 10px; min-width:0;}
+.waiting-player-name{min-width:0; overflow-wrap:anywhere;}
 .waiting-players .ready-dot{width:9px; height:9px; border-radius:50%; background:#d0c8b4;}
 .waiting-players .ready-dot.on{background:var(--paddy);}
+.profile-avatar{width:30px; height:30px; flex:0 0 30px; display:inline-flex; align-items:center; justify-content:center; border:2px solid rgba(38,34,28,.18); border-radius:50%; color:#fff; font-weight:700; font-size:.8rem; text-shadow:0 1px 2px rgba(0,0,0,.35);}
+.remove-player{flex:0 0 auto; border:1px solid #c1543a; border-radius:6px; background:#fff; color:#a13e2b; padding:6px 9px; font:600 .75rem "Mukta",sans-serif; cursor:pointer;}
+.remove-player:hover{background:#fbebe7;}
 .token-picker{margin:14px 0;}
 .token-choices{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
 .token-choice{
-  font-size:1.5rem; width:48px; height:48px; border-radius:50%; border:2px solid #e2dac6;
-  background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  width:44px; height:44px; flex:0 0 44px; border-radius:50%; border:3px solid #fff;
+  box-shadow:0 0 0 1px #c9c1b2; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
-.token-choice.selected{border-color:var(--backwater); background:#e4f4f2;}
+.token-choice.selected{box-shadow:0 0 0 3px var(--ink);}
 .token-choice.taken{opacity:.3; cursor:not-allowed;}
 
 /* ---------- game layout ---------- */
@@ -89,7 +93,7 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 }
 .topbar-brand{font-family:"Rozha One",serif; font-size:1.1rem;}
 .topbar-room{margin-left:auto; font-size:.85rem; opacity:.9;}
-.icon-btn{background:rgba(255,255,255,.15); border:none; color:#fff; font-size:1.1rem; padding:8px 10px; border-radius:8px;}
+.icon-btn{background:rgba(255,255,255,.15); border:none; color:#fff; font:600 .85rem "Mukta",sans-serif; padding:8px 10px; border-radius:8px; min-height:40px; cursor:pointer;}
 .mobile-only{display:none;}
 
 .game-layout{
@@ -115,8 +119,9 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 .tile.corner{font-size:.62rem; background:#fbf6ea;}
 .tile-owner-dot{position:absolute; bottom:3px; width:9px; height:9px; border-radius:50%; border:1px solid #fff;}
 .token-dot{
-  position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; border:1.5px solid var(--coir);
+  position:absolute; width:15px; height:15px; border-radius:50%; background:#fff; border:1.5px solid #fff;
   display:flex; align-items:center; justify-content:center; font-size:.6rem; transition:all .35s ease;
+  box-shadow:0 1px 3px rgba(0,0,0,.45);
 }
 .board-center{
   grid-column:2 / 8; grid-row:2 / 8; display:flex; align-items:center; justify-content:center;
@@ -126,9 +131,9 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 .panel{background:var(--card); border-radius:12px; padding:16px; box-shadow:0 4px 14px rgba(0,0,0,.06); height:fit-content;}
 .panel-players{display:flex; flex-direction:column; gap:12px;}
 .player-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
-.player-list li{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; font-size:.9rem;}
+.player-list li{display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:8px; font-size:.9rem; min-width:0;}
 .player-list li.current-turn{background:#fbf1da; box-shadow:0 0 0 1.5px var(--gold);}
-.player-list .p-token{font-size:1.1rem;}
+.player-name{min-width:0; overflow-wrap:anywhere;}
 .player-list .p-money{margin-left:auto; font-weight:700; color:var(--paddy); font-size:.85rem;}
 .player-list .p-out{text-decoration:line-through; opacity:.5;}
 .turn-banner{background:var(--backwater); color:#fff; padding:8px 10px; border-radius:8px; text-align:center; font-weight:600; font-size:.9rem;}
@@ -156,8 +161,18 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
 /* ---------- responsive ---------- */
 @media (max-width: 880px){
   .mobile-only{display:inline-flex;}
-  .game-layout{grid-template-columns:1fr; padding:10px;}
-  .board{ --cell:min(11.5vw, 46px); }
+  .topbar{gap:7px; padding-left:10px; padding-right:10px;}
+  .topbar-brand{font-size:1rem; white-space:nowrap;}
+  .topbar-room{font-size:.75rem; white-space:nowrap;}
+  .icon-btn{padding:7px 8px;}
+  .game-layout{grid-template-columns:minmax(0,1fr); gap:12px; padding:10px 8px calc(16px + env(safe-area-inset-bottom,0px));}
+  .board{ --cell:clamp(31px, 11.5vw, 46px); }
+  .board-wrap{width:100%; overflow-x:auto; justify-content:center;}
+  .tile{padding:2px;}
+  .tile .tile-emoji{font-size:.9rem;}
+  .tile .tile-name{font-size:.48rem; overflow-wrap:anywhere;}
+  .tile .tile-price{font-size:.45rem;}
+  .board-center{font-size:1.1rem;}
   .panel-players, .panel-chat{
     position:fixed; right:0; bottom:0; left:0; top:auto; z-index:30; border-radius:16px 16px 0 0;
     max-height:70vh; overflow-y:auto; transform:translateY(110%); transition:transform .25s ease;
@@ -165,6 +180,18 @@ input:focus{outline:2px solid var(--backwater); outline-offset:1px;}
   }
   .panel-players.open, .panel-chat.open{transform:translateY(0);}
   .panel-chat{height:70vh; grid-column:1;}
+  .panel-players{gap:10px;}
+  .player-list{gap:5px;}
+  .player-list li{font-size:.85rem;}
+  .btn{min-height:44px;}
+  .chat-form input{min-width:0;}
+}
+@media (max-width: 360px){
+  .topbar{gap:5px;}
+  .topbar-brand{font-size:.9rem;}
+  .topbar-room{font-size:.68rem;}
+  .icon-btn{font-size:.75rem; padding:6px;}
+  .remove-player{padding:5px 7px;}
 }
 @media (min-width:881px){
   .board{ --cell:min(9.5vw, 76px); }

@@ -3,6 +3,8 @@
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441", "#3F7D4A", "#8A4F72"];
+const LEGACY_PROFILE_COLORS = ["#0F6E6E", "#C1543A", "#315D9B", "#D9A441"];
 
 // ---------- local identity ----------
 let myId = localStorage.getItem("kay_playerId") || sessionStorage.getItem("kay_playerId");
@@ -54,7 +56,7 @@ $("btn-create-room").addEventListener("click", async () => {
     hostId: myId,
     createdAt: Date.now(),
     players: {
-      [myId]: { name, token: "", ready: false, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: 0 },
+      [myId]: { name, token: "", profileColor: PROFILE_COLORS[0], ready: false, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: 0 },
     },
   });
   enterRoom(code);
@@ -76,7 +78,7 @@ $("btn-join-room").addEventListener("click", async () => {
   if (count >= 4) return showLobbyError("That room is full (4 players max).");
 
   await db.ref(`rooms/${code}/players/${myId}`).set({
-    name, token: "", ready: false, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: count,
+    name, token: "", profileColor: availableProfileColor(room.players || {}), ready: false, money: START_MONEY, position: 0, inJail: false, jailTurns: 0, out: false, joinOrder: count,
   });
   enterRoom(code);
 });
@@ -87,6 +89,61 @@ function enterRoom(code) {
   roomCode = code;
   sessionStorage.setItem("kay_room", code);
   attachRoomListener();
+}
+
+function availableProfileColor(players) {
+  const used = new Set(Object.values(players).map((player, index) => player.profileColor || LEGACY_PROFILE_COLORS[index % LEGACY_PROFILE_COLORS.length]));
+  return PROFILE_COLORS.find((color) => !used.has(color)) || PROFILE_COLORS[0];
+}
+
+function makeRemoveButton(playerId, playerName) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "remove-player";
+  button.textContent = "Remove";
+  button.setAttribute("aria-label", `Remove ${playerName}`);
+  button.addEventListener("click", () => removeRoomPlayer(playerId, playerName));
+  return button;
+}
+
+async function removeRoomPlayer(playerId, playerName) {
+  if (!currentRoom || myId !== currentRoom.hostId || playerId === myId) return;
+  if (!confirm(`Remove ${playerName} from this room?`)) return;
+
+  const snap = await roomRef.get();
+  if (!snap.exists()) return;
+  const room = snap.val();
+  if (room.hostId !== myId || !room.players?.[playerId]) return;
+  const updates = { [`players/${playerId}`]: null };
+  Object.entries(room.ownership || {}).forEach(([tileIndex, ownerId]) => {
+    if (ownerId === playerId) updates[`ownership/${tileIndex}`] = null;
+  });
+
+  if (room.status === "playing") {
+    const oldOrder = room.order || Object.keys(room.players);
+    const oldTurnId = oldOrder[room.turn];
+    const newOrder = oldOrder.filter((id) => id !== playerId);
+    updates.order = newOrder;
+    if (newOrder.length <= 1) {
+      updates.status = "over";
+      updates.winner = newOrder[0] || null;
+      updates.turn = 0;
+      updates.pendingDecision = null;
+      updates.diceRolled = false;
+    } else if (oldTurnId === playerId) {
+      const nextOldId = oldOrder.slice(room.turn + 1).concat(oldOrder.slice(0, room.turn))
+        .find((id) => id !== playerId);
+      updates.turn = newOrder.indexOf(nextOldId);
+      updates.diceRolled = false;
+      updates.doublesCount = 0;
+      if (room.pendingDecision?.playerId === playerId) updates.pendingDecision = null;
+    } else {
+      updates.turn = newOrder.indexOf(oldTurnId);
+    }
+  }
+
+  await roomRef.update(updates);
+  await pushLog(`${playerName} was removed by the host.`);
 }
 
 // auto-rejoin on refresh
@@ -110,6 +167,15 @@ function attachRoomListener() {
   roomRef.on("value", (snap) => {
     if (!snap.exists()) return;
     currentRoom = snap.val();
+    if (!currentRoom.players?.[myId]) {
+      roomRef.off();
+      roomRef.child("chat").off();
+      sessionStorage.removeItem("kay_room");
+      roomCode = null;
+      showScreen("lobby");
+      showLobbyError("The host removed you from the room.");
+      return;
+    }
     if (currentRoom.status === "lobby") renderWaitingRoom();
     else if (currentRoom.status === "playing") renderGameScreen();
     else if (currentRoom.status === "over") renderGameOver();
@@ -126,30 +192,45 @@ function renderWaitingRoom() {
   const players = currentRoom.players || {};
   const list = $("waiting-players");
   list.innerHTML = "";
-  const taken = new Set(Object.values(players).map((p) => p.token).filter(Boolean));
+  const taken = new Set(Object.entries(players).filter(([id]) => id !== myId).map(([id, p]) => playerColor(id, Object.keys(players))));
 
   Object.entries(players)
     .sort((a, b) => a[1].joinOrder - b[1].joinOrder)
     .forEach(([id, p]) => {
       const li = document.createElement("li");
-      li.innerHTML = `<span class="ready-dot ${p.ready ? "on" : ""}"></span>
-        <span>${p.token || "❔"} ${escapeHtml(p.name)}${id === currentRoom.hostId ? " (host)" : ""}</span>`;
+      const avatar = document.createElement("span");
+      avatar.className = "profile-avatar";
+      avatar.textContent = p.name.trim().charAt(0).toUpperCase();
+      avatar.style.backgroundColor = playerColor(id, Object.keys(players));
+      const name = document.createElement("span");
+      name.className = "waiting-player-name";
+      name.textContent = `${p.name}${id === currentRoom.hostId ? " (host)" : ""}`;
+      const ready = document.createElement("span");
+      ready.className = `ready-dot ${p.ready ? "on" : ""}`;
+      li.append(avatar, name, ready);
+      if (myId === currentRoom.hostId && id !== myId) {
+        const remove = makeRemoveButton(id, p.name);
+        li.appendChild(remove);
+      }
       list.appendChild(li);
     });
 
   const choices = $("token-choices");
   choices.innerHTML = "";
-  TOKENS.forEach((t) => {
+  PROFILE_COLORS.forEach((color, index) => {
     const btn = document.createElement("button");
     btn.className = "token-choice";
-    btn.textContent = t;
-    const isMine = players[myId] && players[myId].token === t;
-    const isTaken = taken.has(t) && !isMine;
+    btn.type = "button";
+    btn.style.backgroundColor = color;
+    btn.setAttribute("aria-label", `Choose profile color ${index + 1}`);
+    btn.title = `Color ${index + 1}`;
+    const isMine = players[myId] && playerColor(myId, Object.keys(players)) === color;
+    const isTaken = taken.has(color) && !isMine;
     if (isMine) btn.classList.add("selected");
     if (isTaken) btn.classList.add("taken");
     btn.disabled = isTaken;
     btn.addEventListener("click", () => {
-      db.ref(`rooms/${roomCode}/players/${myId}/token`).set(t);
+      db.ref(`rooms/${roomCode}/players/${myId}/profileColor`).set(color);
     });
     choices.appendChild(btn);
   });
@@ -160,7 +241,7 @@ function renderWaitingRoom() {
   $("btn-ready").textContent = iAmReady ? "Ready ✓" : "I'm ready";
   $("btn-ready").onclick = () => {
     const p = players[myId];
-    if (!p.token) return alert("Pick a token first!");
+    if (!p.profileColor && !p.token) return alert("Pick a profile color first!");
     db.ref(`rooms/${roomCode}/players/${myId}/ready`).set(!p.ready);
   };
 
@@ -325,7 +406,9 @@ function renderTokensOnBoard(players, order) {
     ps.forEach((p, k) => {
       const dot = document.createElement("div");
       dot.className = "token-dot";
-      dot.textContent = p.token;
+      const playerId = order.find((id) => players[id] === p);
+      dot.style.backgroundColor = playerColor(playerId, order);
+      dot.title = p.name;
       dot.style.left = 4 + (k % 3) * 15 + "px";
       dot.style.top = 4 + Math.floor(k / 3) * 15 + "px";
       tileEl.appendChild(dot);
@@ -351,8 +434,9 @@ function renderOwnership(players) {
 }
 
 function playerColor(id, order) {
-  const palette = ["#0F6E6E", "#C1543A", "#6B4E9B", "#D9A441"];
-  return palette[order.indexOf(id) % palette.length];
+  const player = currentRoom?.players?.[id];
+  if (player?.profileColor) return player.profileColor;
+  return LEGACY_PROFILE_COLORS[Math.max(0, order.indexOf(id)) % LEGACY_PROFILE_COLORS.length];
 }
 
 function renderPlayerList(players, order, turnPlayerId) {
@@ -360,11 +444,21 @@ function renderPlayerList(players, order, turnPlayerId) {
   ul.innerHTML = "";
   order.forEach((id) => {
     const p = players[id];
+    if (!p) return;
     const li = document.createElement("li");
     if (id === turnPlayerId) li.classList.add("current-turn");
-    li.innerHTML = `<span class="p-token">${p.token}</span>
-      <span class="${p.out ? "p-out" : ""}">${escapeHtml(p.name)}${p.inJail ? " 🔒" : ""}</span>
-      <span class="p-money">${p.out ? "OUT" : "₹" + p.money}</span>`;
+    const avatar = document.createElement("span");
+    avatar.className = "profile-avatar";
+    avatar.textContent = p.name.trim().charAt(0).toUpperCase();
+    avatar.style.backgroundColor = playerColor(id, order);
+    const name = document.createElement("span");
+    name.className = p.out ? "player-name p-out" : "player-name";
+    name.textContent = `${p.name}${p.inJail ? " (in jail)" : ""}${id === currentRoom.hostId ? " · Host" : ""}`;
+    const money = document.createElement("span");
+    money.className = "p-money";
+    money.textContent = p.out ? "OUT" : `₹${p.money}`;
+    li.append(avatar, name, money);
+    if (myId === currentRoom.hostId && id !== myId) li.appendChild(makeRemoveButton(id, p.name));
     ul.appendChild(li);
   });
 }
@@ -431,11 +525,14 @@ async function movePlayer(id, steps, allowReroll) {
   const oldPos = p.position;
   const newPos = (oldPos + steps) % BOARD.length;
   const passedGo = newPos < oldPos || (oldPos + steps) >= BOARD.length;
-
-  let newMoney = p.money;
-  if (passedGo) newMoney += PASS_GO_BONUS;
-
-  await roomRef.update({ [`players/${id}/position`]: newPos, [`players/${id}/money`]: newMoney });
+  let position = oldPos;
+  for (let step = 0; step < steps; step++) {
+    position = (position + 1) % BOARD.length;
+    const updates = { [`players/${id}/position`]: position };
+    if (position === 0) updates[`players/${id}/money`] = p.money + PASS_GO_BONUS;
+    await roomRef.update(updates);
+    if (step < steps - 1) await new Promise((resolve) => setTimeout(resolve, 110));
+  }
   if (passedGo) await pushLog(`${p.name} passed GO and collected ₹${PASS_GO_BONUS}.`);
   await pushLog(`${p.name} rolled and moved to ${BOARD[newPos].name}.`);
   await resolveTile(id, newPos, allowReroll);
@@ -450,8 +547,12 @@ async function resolveTile(id, tileIndex, allowReroll) {
   if (tile.type === "property" || tile.type === "transport") {
     const ownerId = ownership[tileIndex];
     if (!ownerId) {
-      await roomRef.update({ pendingDecision: { type: "buy", tileIndex, playerId: id } });
-      return; // wait for buy/skip
+      if (p.money >= tile.price) {
+        await roomRef.update({ pendingDecision: { type: "buy", tileIndex, playerId: id, allowReroll: Boolean(allowReroll) } });
+        return;
+      }
+      await pushLog(`${p.name} cannot afford ${tile.name}; the property is passed.`);
+      return finishResolution(allowReroll);
     } else if (ownerId !== id) {
       await payRent(id, ownerId, tile.rent, tile.name);
     }
@@ -529,21 +630,25 @@ async function handleBankruptcy(loserId, creditorId) {
 
 $("btn-buy").addEventListener("click", async () => {
   const pending = currentRoom.pendingDecision;
-  if (!pending) return;
+  if (!pending || pending.playerId !== myId) return;
   const tile = BOARD[pending.tileIndex];
   const p = currentRoom.players[myId];
-  if (p.money < tile.price) { alert("Not enough money!"); return; }
+  if (!p || p.money < tile.price) return;
   await roomRef.update({
     [`players/${myId}/money`]: p.money - tile.price,
     [`ownership/${pending.tileIndex}`]: myId,
     pendingDecision: null,
   });
   await pushLog(`${p.name} bought ${tile.name} for ₹${tile.price}.`);
+  await finishResolution(pending.allowReroll);
 });
 
 $("btn-skip-buy").addEventListener("click", async () => {
+  const pending = currentRoom.pendingDecision;
+  if (!pending || pending.playerId !== myId) return;
   await roomRef.update({ pendingDecision: null });
   await pushLog(`${currentRoom.players[myId].name} chose not to buy.`);
+  await finishResolution(pending.allowReroll);
 });
 
 $("btn-pay-bail").addEventListener("click", async () => {
@@ -573,7 +678,7 @@ $("btn-end-turn").addEventListener("click", async () => {
 function renderGameOver() {
   showScreen("over");
   const winner = currentRoom.players[currentRoom.winner];
-  $("winner-text").textContent = winner ? `${winner.token} ${winner.name} wins the game! 🎉` : "Game over.";
+  $("winner-text").textContent = winner ? `${winner.name} wins the game!` : "Game over.";
 }
 $("btn-new-game").addEventListener("click", () => {
   sessionStorage.removeItem("kay_room");
